@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebLLM Bench — Test, Chat & Compare Browser LLMs</title>
+    <meta name="description" content="The one-stop platform for testing, chatting with, and comparing all WebLLM/MLC models. Runs entirely in your browser via WebGPU." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg-base: #f3eee6;
+        --bg-elev-1: #fffaf3;
+        --bg-elev-2: #ffffff;
+        --bg-soft: #f4f1eb;
+        --ink-1: #11141a;
+        --ink-2: #39414f;
+        --ink-3: #6f7a8e;
+        --line: #d7d8dc;
+        --line-strong: #c2c5cd;
+        --teal: #0c8d86;
+        --teal-soft: rgba(12, 141, 134, 0.12);
+        --orange: #ef6a2f;
+        --orange-soft: rgba(239, 106, 47, 0.12);
+        --blue: #2f6ded;
+        --blue-soft: rgba(47, 109, 237, 0.12);
+        --green: #0f8a3f;
+        --green-soft: rgba(15, 138, 63, 0.12);
+        --red: #bc2e2e;
+        --red-soft: rgba(188, 46, 46, 0.12);
+        --yellow: #a37300;
+        --radius-lg: 18px;
+        --radius-md: 12px;
+        --radius-sm: 9px;
+        --shadow-soft: 0 14px 40px rgba(20, 24, 36, 0.08);
+        --shadow-focus: 0 0 0 3px rgba(47, 109, 237, 0.18);
+      }
+
+      body {
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 12% -8%, #fff3de 0%, rgba(255, 243, 222, 0) 45%),
+          radial-gradient(circle at 85% 0%, #e8f5ff 0%, rgba(232, 245, 255, 0) 40%),
+          linear-gradient(180deg, #f8f3ea 0%, #f0ebe2 100%);
+        color: var(--ink-1);
+        font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.45;
+      }
+
+      .container {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 18px 22px 40px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 12px;
+        padding: 4px 8px 0;
+      }
+      .header h1 {
+        font-size: clamp(30px, 4.6vw, 46px);
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        margin-bottom: 6px;
+        color: #121722;
+      }
+      .header p {
+        max-width: 620px;
+        margin: 0 auto;
+        color: var(--ink-2);
+        font-size: 14px;
+        letter-spacing: -0.01em;
+      }
+      .badge-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid var(--line-strong);
+        background: #ffffffcc;
+        backdrop-filter: blur(8px);
+        color: var(--ink-2);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .badge .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .badge .dot.green { background: #1f9d57; }
+      .badge .dot.blue { background: var(--blue); }
+      #globalFamilyFilter {
+        margin-left: auto !important;
+        width: auto !important;
+        min-width: 170px;
+        font-size: 12px !important;
+        padding: 9px 38px 9px 12px !important;
+        border-radius: 999px !important;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.25L6 6.25L11 1.25' stroke='%23222833' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 13px center;
+        background-size: 12px 8px;
+      }
+      #globalFamilyFilter::-ms-expand { display: none; }
+
+      .status-banner {
+        padding: 12px 14px;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        border: 1px solid var(--line);
+      }
+      .status-banner.error { display: block; background: var(--red-soft); color: var(--red); border-color: rgba(188, 46, 46, 0.28); }
+      .status-banner.success { display: block; background: var(--green-soft); color: #0e6f35; border-color: rgba(15, 138, 63, 0.28); }
+      .status-banner.warning { display: block; background: #fff4dc; color: #9d6800; border-color: #f0cf87; }
+
+      .device-info {
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        color: var(--ink-3);
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        padding: 9px 12px;
+        margin-bottom: 14px;
+      }
+
+      .card {
+        background: var(--bg-elev-2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: var(--shadow-soft);
+      }
+      .card-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--ink-3);
+        font-weight: 700;
+        margin-bottom: 13px;
+      }
+
+      #customModelPanel {
+        background: linear-gradient(155deg, #ffffff, #fbf6ee);
+      }
+      #customModelPanel summary {
+        font-size: 18px;
+        font-weight: 700;
+        color: #15263c !important;
+        letter-spacing: -0.02em;
+      }
+      #customModelPanel summary::marker { color: var(--teal); }
+
+      .tab-bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        background: #ffffffc7;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 8px;
+        margin-bottom: 18px;
+        overflow-x: auto;
+        backdrop-filter: blur(10px);
+      }
+      .tab-btn {
+        flex: 1;
+        min-width: 126px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ink-3);
+        border-radius: 10px;
+        padding: 11px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        transition: all 160ms ease;
+      }
+      .tab-btn:hover {
+        border-color: var(--line);
+        color: var(--ink-2);
+        background: #fff;
+      }
+      .tab-btn.active {
+        border-color: #bcd6ff;
+        color: #113264;
+        background: linear-gradient(135deg, #edf5ff, #ffffff);
+        box-shadow: inset 0 0 0 1px #d8e6ff;
+      }
+      .tab-panel { display: none; animation: fadein 220ms ease; }
+      .tab-panel.active { display: block; }
+
+      @keyframes fadein {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .form-grid.full { grid-template-columns: 1fr; }
+      .form-grid.thirds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+      label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--ink-3);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+
+      select,
+      input[type="number"],
+      input[type="text"],
+      .input-text,
+      textarea {
+        width: 100%;
+        background: var(--bg-soft);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        color: var(--ink-1);
+        font-size: 13px;
+        font-family: "Space Grotesk", sans-serif;
+        padding: 10px 11px;
+        outline: none;
+        transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+      }
+      textarea {
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        resize: vertical;
+      }
+      select:focus,
+      input:focus,
+      textarea:focus {
+        border-color: #86afff;
+        box-shadow: var(--shadow-focus);
+        background: #fff;
+      }
+
+      .model-meta {
+        margin-top: 5px;
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: var(--ink-3);
+      }
+      .model-meta .vram { color: #8b5e00; font-weight: 600; }
+      .model-meta .ctx { color: #0c8d86; font-weight: 600; }
+
+      .btn {
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        border-radius: 10px;
+        padding: 11px 16px;
+        border: 1px solid transparent;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        transition: all 150ms ease;
+      }
+      .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+      .btn-primary {
+        color: #fff;
+        background: linear-gradient(140deg, #2f6ded, #0c8d86);
+        box-shadow: 0 10px 24px rgba(47, 109, 237, 0.26);
+      }
+      .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(47, 109, 237, 0.34); }
+      .btn-gold {
+        color: #2b1200;
+        background: linear-gradient(140deg, #ffb649, #ff8337);
+        box-shadow: 0 10px 24px rgba(255, 131, 55, 0.26);
+      }
+      .btn-gold:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(255, 131, 55, 0.34); }
+      .btn-secondary {
+        color: #1f2a3d;
+        border-color: var(--line);
+        background: #fff;
+      }
+      .btn-secondary:hover:not(:disabled) { background: #f7f9ff; border-color: #c8d7f5; }
+      .btn-green {
+        color: #022b1d;
+        background: linear-gradient(140deg, #5cd7a7, #1fbf8f);
+      }
+      .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
+      .btn-row.thirds { grid-template-columns: 1fr 1fr 1fr; }
+
+      .progress-wrap { margin-top: 11px; display: none; }
+      .progress-wrap.active { display: block; }
+      .progress-bar-bg {
+        background: #e7e8ec;
+        border-radius: 999px;
+        height: 7px;
+        overflow: hidden;
+      }
+      .progress-bar {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2f6ded, #0c8d86, #ff7f31);
+        transition: width 280ms ease;
+      }
+      .progress-text {
+        margin-top: 5px;
+        color: var(--ink-3);
+        font-size: 11px;
+      }
+
+      .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .results-table th {
+        text-align: left;
+        padding: 10px 9px;
+        background: #f6f8fc;
+        color: var(--ink-3);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border-bottom: 1px solid var(--line);
+      }
+      .results-table td {
+        padding: 9px;
+        border-bottom: 1px solid #eceef3;
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .results-table tr:last-child td { border-bottom: none; }
+      .metric-label { color: var(--ink-2); font-family: "Space Grotesk", sans-serif; font-weight: 600; }
+      .metric-value { color: var(--ink-1); font-weight: 600; }
+      .metric-unit { color: var(--ink-3); font-size: 10px; }
+      .delta-positive { color: #117644; font-weight: 700; }
+      .delta-negative { color: #b03a2e; font-weight: 700; }
+      .delta-neutral { color: var(--ink-3); font-weight: 700; }
+      .fairness-note {
+        margin-top: 10px;
+        padding: 9px 10px;
+        border-radius: 10px;
+        background: #fff2d9;
+        border: 1px solid #f2d29a;
+        color: #9d6800;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .source-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 11px; margin-bottom: 10px; }
+      .source-value {
+        padding: 8px 9px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #f8f9fb;
+        font-size: 11px;
+        color: #2a3342;
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        word-break: break-all;
+      }
+
+      .checkbox-wrap {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding-top: 6px;
+      }
+      .checkbox-wrap input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--teal); }
+      .checkbox-wrap span { font-size: 12px; color: var(--ink-2); }
+
+      .chat-container { display: flex; flex-direction: column; min-height: 440px; }
+      .chat-messages {
+        flex: 1;
+        max-height: 460px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px 4px;
+      }
+      .chat-msg {
+        max-width: 86%;
+        padding: 10px 13px;
+        border-radius: 12px;
+        font-size: 13px;
+        line-height: 1.55;
+        box-shadow: 0 6px 16px rgba(17, 20, 26, 0.06);
+      }
+      .chat-msg.user {
+        align-self: flex-end;
+        background: linear-gradient(145deg, #2f6ded, #1755d5);
+        color: #fff;
+        border-bottom-right-radius: 6px;
+      }
+      .chat-msg.assistant {
+        align-self: flex-start;
+        background: #fff;
+        color: var(--ink-1);
+        border: 1px solid var(--line);
+        border-bottom-left-radius: 6px;
+      }
+      .chat-msg .msg-meta {
+        margin-top: 7px;
+        font-size: 10px;
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .chat-msg.user .msg-meta { color: rgba(255, 255, 255, 0.78); }
+      .chat-msg.assistant .msg-meta { color: var(--ink-3); }
+      .chat-empty {
+        text-align: center;
+        padding: 56px 16px;
+        color: var(--ink-3);
+        font-size: 13px;
+      }
+      .chat-empty .chat-empty-icon { font-size: 34px; margin-bottom: 8px; }
+      .chat-input-row { display: flex; gap: 9px; margin-top: 10px; }
+      .chat-input-row textarea { flex: 1; min-height: 42px; max-height: 120px; }
+      .chat-input-row .btn { width: auto; padding: 10px 18px; }
+      .chat-controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 9px;
+      }
+      .chat-controls label {
+        margin: 0;
+        font-size: 10px;
+        letter-spacing: 0.06em;
+      }
+      .chat-controls select, .chat-controls input {
+        width: auto;
+        min-width: 70px;
+        padding: 6px 8px;
+        font-size: 11px;
+      }
+
+      .compare-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .compare-col .card {
+        border: 1px solid #cad4e8;
+        background: linear-gradient(180deg, #ffffff, #f8fafd);
+      }
+      .compare-response {
+        min-height: 100px;
+        max-height: 320px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fbfcff;
+        padding: 11px 12px;
+        font-size: 13px;
+      }
+      .compare-metrics {
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--ink-3);
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .rec-card {
+        background: linear-gradient(145deg, #fff8ec, #fff, #eef8ff);
+        border: 1px solid #ffd59a;
+        text-align: center;
+        border-radius: var(--radius-lg);
+        padding: 18px;
+      }
+      .rec-card .rec-label {
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: #955406;
+      }
+      .rec-card .rec-model {
+        font-size: clamp(22px, 4vw, 34px);
+        letter-spacing: -0.02em;
+        font-weight: 700;
+        margin-top: 4px;
+      }
+      .rec-card .rec-reason { margin-top: 2px; color: var(--ink-2); font-size: 13px; }
+      .rec-card .rec-scores {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 14px;
+      }
+      .rec-card .rec-score-value {
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .rec-card .rec-score-label {
+        font-size: 9px;
+        color: var(--ink-3);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+
+      .rank-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .rank-table th {
+        background: #f6f8fc;
+        color: var(--ink-3);
+        text-align: left;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 9px 8px;
+        border-bottom: 1px solid var(--line);
+      }
+      .rank-table td {
+        padding: 8px;
+        border-bottom: 1px solid #eceef3;
+        font-size: 12px;
+      }
+      .rank-table tr:last-child td { border-bottom: none; }
+      .rank-table tr.rank-1 td { background: #fff6e7; }
+      .rank-medal { font-size: 14px; }
+      .rank-score {
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 700;
+      }
+      .rank-bar-bg {
+        width: 64px;
+        height: 6px;
+        border-radius: 999px;
+        background: #eaedf4;
+        display: inline-block;
+        margin-left: 6px;
+      }
+      .rank-bar {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2f6ded, #0c8d86);
+      }
+
+      .usecase-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+      .usecase-card {
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 12px;
+        padding: 11px 12px;
+        cursor: pointer;
+        transition: all 150ms ease;
+      }
+      .usecase-card:hover { border-color: #b7cadf; box-shadow: 0 8px 18px rgba(22, 28, 40, 0.08); }
+      .usecase-card.selected {
+        border-color: #7fa9ff;
+        background: linear-gradient(160deg, #f0f6ff, #f9fcff);
+        box-shadow: inset 0 0 0 1px #d8e5ff;
+      }
+      .usecase-card .uc-icon { font-size: 18px; margin-bottom: 2px; }
+      .usecase-card .uc-name { font-size: 13px; font-weight: 700; color: #202a3c; }
+      .usecase-card .uc-desc { font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+
+      .baseline-count {
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .share-area {
+        margin-top: 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #f8f9fc;
+        padding: 10px;
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px;
+        color: var(--ink-2);
+        max-height: 130px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        user-select: all;
+      }
+
+      .log-area {
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px;
+        color: #47546a;
+        background: #f8f9fc;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 11px;
+        max-height: 180px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        line-height: 1.55;
+      }
+
+      .dropzone {
+        border: 1px dashed #b9c4d5;
+        border-radius: 10px;
+        padding: 11px;
+        background: #f8f9fc;
+        color: #364153;
+        font-size: 12px;
+      }
+      .dropzone.dragover {
+        border-color: #5d8cf4;
+        background: #edf3ff;
+      }
+      .dropzone .dropzone-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .dropzone-info {
+        margin-top: 7px;
+        font-size: 11px;
+        color: var(--ink-3);
+        word-break: break-all;
+      }
+      .dropzone-hint {
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--ink-3);
+      }
+
+      .hidden { display: none !important; }
+      .model-count { color: #12488f; }
+
+      @media (max-width: 960px) {
+        .container { padding-left: 16px; padding-right: 16px; }
+        .form-grid, .form-grid.thirds { grid-template-columns: 1fr; }
+        .source-grid { grid-template-columns: 1fr; }
+        .compare-cols { grid-template-columns: 1fr; }
+        .btn-row, .btn-row.thirds { grid-template-columns: 1fr; }
+        .usecase-grid { grid-template-columns: 1fr; }
+        #globalFamilyFilter { margin-left: 0 !important; width: 100% !important; }
+        .badge-row { justify-content: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>WebLLM Bench</h1>
+        <div class="badge-row">
+          <span class="badge"><span class="dot green"></span>WebGPU</span>
+          <span class="badge"><span class="dot blue"></span>Local Inference</span>
+          <span class="badge">v2.0</span>
+          <span class="badge" id="modelCountBadge">…</span>
+          <span class="badge hidden" id="liveUsersBadge">Users (24h): —</span>
+          <span class="badge hidden" id="liveRunsBadge">Runs (24h): —</span>
+          <select id="globalFamilyFilter" class="input-text" style="margin-left:auto; font-size:11px; padding:3px 6px; width:auto; border-radius:4px;"><option value="All">All Families</option></select>
+        </div>
+      </div>
+
+      <div id="statusBanner" class="status-banner hidden"></div>
+      <!-- Custom Model Panel -->
+      <details id="customModelPanel" class="card" style="margin-bottom: 12px;">
+        <summary style="cursor: pointer; font-weight: 600; color: var(--accent);">
+          🔧 Add Custom Model
+        </summary>
+        <div style="height: 8px;"></div>
+        <div class="form-grid full" style="margin-bottom: 10px;">
+          <div>
+            <label>Model Weights URL (optional if local files selected)</label>
+            <input type="text" id="customModelUrl" class="input-text" placeholder="https://your-host/model-root" style="width:100%;" />
+          </div>
+        </div>
+        <div class="form-grid full" style="margin-bottom: 10px;">
+          <div>
+            <label>Local Model Files (optional)</label>
+            <div id="localModelFilesDropzone" class="dropzone">
+              <div>Drag/drop local model files or a folder (`mlc-chat-config.json`, `tokenizer.json`, `tensor-cache.json`, `params_shard_*.bin`).</div>
+              <div class="dropzone-actions">
+                <button type="button" id="pickLocalModelFilesBtn" class="btn btn-secondary" style="width:auto; padding:5px 10px; font-size:11px;">Choose Files</button>
+                <button type="button" id="pickLocalModelFolderBtn" class="btn btn-secondary" style="width:auto; padding:5px 10px; font-size:11px;">Choose Folder</button>
+                <button type="button" id="clearLocalModelFilesBtn" class="btn btn-secondary" style="width:auto; padding:5px 10px; font-size:11px;">Clear</button>
+              </div>
+              <div id="localModelFilesInfo" class="dropzone-info">No local model files selected.</div>
+              <div class="dropzone-hint">Local files are session-only (browser security). Re-add after reload.</div>
+              <input type="file" id="localModelFilesInput" multiple style="display:none;" />
+              <input type="file" id="localModelFolderInput" webkitdirectory directory multiple style="display:none;" />
+            </div>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Model Lib URL (optional if local wasm selected)</label>
+            <input type="text" id="customLibUrl" class="input-text" placeholder="https://your-host/model.wasm" />
+            <div id="localWasmDropzone" class="dropzone" style="margin-top:8px;">
+              <div>Drag and drop a local <code>.wasm</code> file here (no link needed for model lib).</div>
+              <div class="dropzone-actions">
+                <button type="button" id="pickLocalWasmBtn" class="btn btn-secondary" style="width:auto; padding:5px 10px; font-size:11px;">Choose .wasm</button>
+                <button type="button" id="clearLocalWasmBtn" class="btn btn-secondary" style="width:auto; padding:5px 10px; font-size:11px;">Clear</button>
+              </div>
+              <div id="localWasmInfo" class="dropzone-info">No local .wasm selected.</div>
+              <input type="file" id="localWasmFileInput" accept=".wasm,application/wasm" style="display:none;" />
+            </div>
+          </div>
+          <div>
+            <label>Model ID (Unique Name)</label>
+            <input type="text" id="customModelId" class="input-text" placeholder="MyModel-1.5B" />
+          </div>
+          <div>
+            <label>Context Window</label>
+            <input type="number" id="customContext" class="input-text" placeholder="4096" />
+          </div>
+          <div>
+            <label>VRAM Required (MB)</label>
+            <input type="number" id="customVram" class="input-text" placeholder="1600" />
+          </div>
+        </div>
+        <div class="btn-row thirds" style="margin-top:10px;">
+          <button id="addBaseline8kPresetBtn" class="btn btn-green">⚡ Add Local 8k Preset</button>
+          <button id="addCustomBtn" class="btn btn-primary">➕ Add to Registry</button>
+          <button id="clearCustomBtn" class="btn btn-secondary">🗑 Clear Custom Models</button>
+        </div>
+        <div id="customModelWarn" style="margin-top:8px; font-size: 12px; color: var(--yellow);"></div>
+      </details>
+
+      <!-- Tabs -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="benchmark">⚡ Bench</button>
+        <button class="tab-btn" data-tab="chat">💬 Chat</button>
+        <button class="tab-btn" data-tab="compare">📊 Compare</button>
+        <button class="tab-btn" data-tab="findBest">🏆 Best Model</button>
+        <button class="tab-btn" data-tab="community">🌍 Community</button>
+      </div>
+
+      <!-- ═══════════ TAB 1: Benchmark ═══════════ -->
+      <div id="tab-benchmark" class="tab-panel active">
+        <div class="card">
+          <div class="card-title">Benchmark Configuration</div>
+          <div class="form-grid full" style="margin-bottom: 10px;">
+            <div>
+              <label for="benchModelSelect">Model</label>
+              <select id="benchModelSelect"></select>
+              <div id="benchModelMeta" class="model-meta"></div>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div><label for="promptTokens">Prompt Tokens</label><select id="promptTokens"><option value="512">512</option><option value="1024" selected>1024</option><option value="2048">2048</option><option value="4096">4096</option></select></div>
+            <div><label for="maxTokens">Max Output Tokens</label><select id="maxTokens"><option value="32">32</option><option value="64" selected>64</option><option value="128">128</option><option value="256">256</option><option value="512">512</option><option value="1024">1024</option><option value="2048">2048</option></select></div>
+            <div><label for="iterations">Iterations</label><select id="iterations"><option value="1">1 (quick)</option><option value="3" selected>3</option><option value="5">5</option><option value="10">10 (accurate)</option></select></div>
+            <div><label for="compareModel">Compare With</label><select id="compareModel"><option value="">— none —</option></select></div>
+            <div class="checkbox-wrap"><input type="checkbox" id="useIndexedDBCache" checked /><span>IndexedDB cache</span></div>
+            <div class="checkbox-wrap"><input type="checkbox" id="forceFullLength" /><span>Force full max tokens</span></div>
+          </div>
+          <div class="btn-row"><button id="runBtn" class="btn btn-primary">▶ Run Benchmark</button><button id="exportBtn" class="btn btn-secondary" disabled>⬇ Export JSON</button></div>
+          <div id="progressWrap" class="progress-wrap"><div class="progress-bar-bg"><div id="progressBar" class="progress-bar"></div></div><div id="progressText" class="progress-text">Initializing…</div></div>
+        </div>
+        <div id="resultsCard" class="card hidden"><div class="card-title">Results</div><div id="resultsContent"></div></div>
+        <details id="sourceCard" class="card">
+          <summary style="cursor:pointer; font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:var(--ink-3); font-weight:700;">Model Source & Cache</summary>
+          <div style="height:10px;"></div>
+          <div class="source-grid"><div><label>Runtime URL</label><div id="runtimeSource" class="source-value">(not loaded)</div></div><div><label>Cache</label><div id="cacheMode" class="source-value">—</div></div><div><label>Model Root</label><div id="modelRoot" class="source-value">(on run)</div></div><div><label>Model Lib</label><div id="modelLib" class="source-value">(on run)</div></div></div>
+          <label>Fetch URLs</label><div id="modelUrls" class="log-area">(run to capture)</div>
+        </details>
+      </div>
+
+      <!-- ═══════════ TAB 2: Chat & Test ═══════════ -->
+      <div id="tab-chat" class="tab-panel">
+        <div class="card">
+          <div class="card-title">Chat with any model</div>
+          <div class="form-grid full" style="margin-bottom: 8px;">
+            <div>
+              <label for="chatModelSelect">Model</label>
+              <select id="chatModelSelect"></select>
+              <div id="chatModelMeta" class="model-meta"></div>
+            </div>
+          </div>
+          <div style="margin-bottom: 8px;">
+            <label for="chatSystemPrompt">System Prompt</label>
+            <textarea id="chatSystemPrompt" rows="2" placeholder="You are a helpful assistant.">You are a helpful assistant.</textarea>
+          </div>
+          <div class="chat-controls">
+            <label>Temp</label><input type="number" id="chatTemp" value="0.7" step="0.1" min="0" max="2" style="width:60px;" />
+            <label>Max Tok</label><select id="chatMaxTokens"><option value="64">64</option><option value="128">128</option><option value="256" selected>256</option><option value="512">512</option><option value="1024">1024</option><option value="2048">2048</option><option value="4096">4096</option></select>
+            <label>Top P</label><input type="number" id="chatTopP" value="0.95" step="0.05" min="0" max="1" style="width:60px;" />
+            <label>History</label><input type="number" id="chatHistoryTurns" value="14" min="1" max="50" style="width:66px;" />
+            <label>Window</label>
+            <select id="chatWindowMode">
+              <option value="auto" selected>Auto</option>
+              <option value="sliding">Sliding</option>
+            </select>
+            <label>Sliding Tok</label><input type="number" id="chatSlidingWindow" value="4096" min="256" step="256" style="width:84px;" />
+            <label style="display:flex; align-items:center; gap:6px; margin-left:6px; font-size:11px; color:var(--text-secondary);">
+              <input type="checkbox" id="chatUseHistory" checked />
+              Reuse chat history (KV-friendly)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; margin-left:6px; font-size:11px; color:var(--text-secondary);">
+              <input type="checkbox" id="chatGroundFacts" checked />
+              Ground model/date facts
+            </label>
+            <button id="chatClearBtn" class="btn btn-secondary" style="width:auto; padding:5px 12px; font-size:11px;">🗑 Clear</button>
+          </div>
+          <div id="chatLoadBtn" class="btn btn-green" style="margin-top: 10px;">Load Model & Start Chatting</div>
+          <div id="chatProgressWrap" class="progress-wrap"><div class="progress-bar-bg"><div id="chatProgressBar" class="progress-bar"></div></div><div id="chatProgressText" class="progress-text"></div></div>
+        </div>
+        <div class="card chat-container">
+          <div id="chatMessages" class="chat-messages">
+            <div class="chat-empty"><div class="chat-empty-icon">💬</div>Select a model and start chatting.<br>See how it handles your real prompts.</div>
+          </div>
+          <div class="chat-input-row">
+            <textarea id="chatInput" placeholder="Type a message…" rows="1" disabled></textarea>
+            <button id="chatSendBtn" class="btn btn-primary" style="width:auto;" disabled>Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ TAB 3: Compare ═══════════ -->
+      <div id="tab-compare" class="tab-panel">
+        <div class="card">
+          <div class="card-title">Side-by-Side Comparison</div>
+          <div class="form-grid">
+            <div><label for="compareModelA">Model A</label><select id="compareModelA"></select><div id="compareMetaA" class="model-meta"></div></div>
+            <div><label for="compareModelB">Model B</label><select id="compareModelB"></select><div id="compareMetaB" class="model-meta"></div></div>
+          </div>
+          <div class="form-grid full" style="margin-top: 8px;">
+            <div><label for="comparePrompt">Shared Prompt</label><textarea id="comparePrompt" rows="3" placeholder="Enter a prompt to send to both models...">Explain the concept of recursion in programming. Give one simple example.</textarea></div>
+          </div>
+          <div class="chat-controls">
+            <label>Max Tok</label><select id="compareMaxTokens"><option value="128">128</option><option value="256">256</option><option value="512" selected>512</option><option value="1024">1024</option><option value="2048">2048</option><option value="4096">4096</option></select>
+            <label>Temp</label><input type="number" id="compareTemp" value="0.7" step="0.1" min="0" max="2" style="width:60px;" />
+            <label>Sliding Tok</label><input type="number" id="compareSlidingWindow" value="0" min="0" step="256" style="width:84px;" />
+          </div>
+          <button id="compareRunBtn" class="btn btn-primary" style="margin-top: 10px;">📊 Run Both Models</button>
+          <div id="compareProgressWrap" class="progress-wrap"><div class="progress-bar-bg"><div id="compareProgressBar" class="progress-bar"></div></div><div id="compareProgressText" class="progress-text"></div></div>
+        </div>
+        <div id="compareResultsCard" class="hidden">
+          <div class="compare-cols">
+            <div class="compare-col"><div class="card"><div class="card-title" id="compareHeaderA">Model A</div><div id="compareResponseA" class="compare-response">(waiting…)</div><div id="compareMetricsA" class="compare-metrics"></div></div></div>
+            <div class="compare-col"><div class="card"><div class="card-title" id="compareHeaderB">Model B</div><div id="compareResponseB" class="compare-response">(waiting…)</div><div id="compareMetricsB" class="compare-metrics"></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ TAB 4: Find Best Model ═══════════ -->
+      <div id="tab-findBest" class="tab-panel">
+        <div class="card">
+          <div class="card-title">What are you building?</div>
+          <div class="usecase-grid">
+            <div class="usecase-card selected" data-usecase="chatbot"><div class="uc-icon">💬</div><div class="uc-name">Chat Assistant</div><div class="uc-desc">Fast first response, short answers</div></div>
+            <div class="usecase-card" data-usecase="writer"><div class="uc-icon">✍️</div><div class="uc-name">Content Generation</div><div class="uc-desc">Long-form text, articles, stories</div></div>
+            <div class="usecase-card" data-usecase="code"><div class="uc-icon">💻</div><div class="uc-name">Code Completion</div><div class="uc-desc">Low latency, quick suggestions</div></div>
+            <div class="usecase-card" data-usecase="documents"><div class="uc-icon">📄</div><div class="uc-name">Document Processing</div><div class="uc-desc">Summarize, extract, analyze</div></div>
+          </div>
+          <div class="form-grid full" style="margin-bottom:10px;">
+            <div><label for="sweepModelFilter">Model Size Filter</label>
+              <select id="sweepModelFilter">
+                <option value="small">Small (≤ 3B, fast sweep)</option>
+                <option value="all">All Models (slow, downloads ~10GB)</option>
+                <option value="lowResource">Low Resource Only</option>
+              </select>
+            </div>
+          </div>
+          <button id="sweepBtn" class="btn btn-gold">🏆 Find Best Model for My Hardware</button>
+          <div id="sweepProgressWrap" class="progress-wrap"><div class="progress-bar-bg"><div id="sweepProgressBar" class="progress-bar"></div></div><div id="sweepProgressText" class="progress-text"></div></div>
+        </div>
+        <div id="recCard" class="rec-card hidden"><div class="rec-label">🏆 Recommended for your hardware</div><div id="recModel" class="rec-model"></div><div id="recReason" class="rec-reason"></div><div id="recScores" class="rec-scores"></div></div>
+        <div id="rankCard" class="card hidden"><div class="card-title">Full Ranking</div><div id="rankContent"></div></div>
+      </div>
+
+      <!-- ═══════════ TAB 5: Community ═══════════ -->
+      <div id="tab-community" class="tab-panel">
+        <div class="card">
+          <div class="card-title">Community Baselines</div>
+          <div id="baselineCount" class="baseline-count">0 baselines loaded</div>
+          <div id="baselineResults" class="hidden"><div id="baselineContent"></div></div>
+          <div class="btn-row thirds" style="margin-top: 10px;">
+            <button id="shareBtn" class="btn btn-secondary" disabled>📋 Copy Results</button>
+            <button id="importBtn" class="btn btn-secondary">📥 Import</button>
+            <button id="exportSweepBtn" class="btn btn-secondary" disabled>⬇ Export Sweep</button>
+          </div>
+        </div>
+        <div id="importCard" class="card hidden"><div class="card-title">Paste Baseline JSON</div><textarea id="importArea" class="log-area" style="min-height:80px; resize:vertical; width:100%; color:var(--text-primary);" placeholder="Paste webllm-bench JSON here..."></textarea><button id="importConfirmBtn" class="btn btn-primary" style="margin-top:8px;">Import</button></div>
+        <div id="shareCard" class="card hidden"><div class="card-title">Copied to clipboard</div><div id="sharePreview" class="share-area"></div></div>
+        <div id="leaderboardCard" class="card hidden"><div class="card-title">Leaderboard</div><div id="leaderboardContent"></div></div>
+      </div>
+
+      <!-- Global Log -->
+      <div class="card">
+        <div class="card-title">Log</div>
+        <div id="logArea" class="log-area">WebLLM Bench v2.0 ready.\n</div>
+      </div>
+    </div>
+
+    <script type="module" src="./bench.js"></script>
+  </body>
+</html>
