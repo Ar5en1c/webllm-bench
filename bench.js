@@ -1306,11 +1306,15 @@ function buildEngineOptions(runtime, initProgressCallback, modelId) {
    ENGINE MANAGEMENT
    ══════════════════════════════════════════════════════════════════════ */
 
-async function loadModel(modelId, progressFn) {
+async function loadModel(modelId, progressFn, options = {}) {
+  const forceReload = Boolean(options?.forceReload);
   let runtime = await ensureWebLLM();
   installFetchTracer();
 
-  if (engine && activeModelId === modelId) { log(`Already loaded: ${modelId}`); return; }
+  if (engine && activeModelId === modelId && !forceReload) {
+    log(`Already loaded: ${modelId}`);
+    return;
+  }
 
   if (engine) {
     log(`Unloading ${activeModelId}…`);
@@ -1477,7 +1481,7 @@ async function runBenchmark(modelId, config, progressFn) {
       log(`  run ${i + 1}: runtime exited (exit(1)); reloading model and retrying once...`);
       await loadModel(modelId, (pct, text) => {
         if (progressFn) progressFn(((i + 1) / iterations) * 100, `${text} (retry run ${i + 1})`);
-      });
+      }, { forceReload: true });
       run = await runOne(promptTokens, maxTokens, forceIgnoreEos);
     }
     runs.push(run);
