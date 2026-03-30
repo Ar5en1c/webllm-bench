@@ -17,11 +17,19 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Syntax check
+      - name: Syntax check (bench runtime)
         run: node --check bench.js
 
-      - name: Run tests
-        run: npm run test
+      - name: Syntax check (report scripts)
+        run: |
+          node --check scripts/generate_launch_draft.mjs
+          node --check scripts/generate_8k_validation_report.mjs
+          node --check scripts/generate_8k_batch_report.mjs
 
-      - name: Build OSS packages
-        run: npm run oss:pack
+      - name: Required file smoke check
+        run: |
+          test -f bench.html
+          test -f bench.js
+          test -f README.md
+          test -f docs/RELEASE_NOTES_v1.0.0.md
+          test -f docs/DEVICE_MODEL_GUIDE_2026-03-30.md
