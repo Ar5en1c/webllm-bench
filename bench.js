@@ -860,7 +860,8 @@ function applyBenchmarkPreset(preset, { silent = false } = {}) {
 }
 
 function rebuildModelRegistry() {
-  const merged = [...customModels, ...prebuiltModels];
+  const hostedPreset = getHosted8kPresetModelRecord();
+  const merged = [...(hostedPreset ? [hostedPreset] : []), ...customModels, ...prebuiltModels];
   allModels = dedupeModelRecords(merged).filter(m => m?.model_id && m?.model_lib);
   modelMeta = {};
   for (const m of allModels) modelMeta[m.model_id] = parseModelMeta(m);
@@ -1085,16 +1086,18 @@ function parseModelMeta(record) {
   const features = record.required_features || [];
   const isVLM = record.model_type === 2; // ModelType.VLM
   const isCustom = record.is_custom || false;
+  const isHostedPreset = record.is_builtin_hosted_preset || false;
 
   // Short display name
   let shortName = id.replace(/-MLC$/, '').replace(/-q\w+/, '');
   if (shortName.length > 30) shortName = shortName.slice(0, 28) + '…';
 
-  return { id, family, size, quant, vram, ctx, lowRes, features, isVLM, shortName, isCustom };
+  return { id, family, size, quant, vram, ctx, lowRes, features, isVLM, shortName, isCustom, isHostedPreset };
 }
 
 function modelMetaText(meta) {
   const parts = [];
+  if (meta.isHostedPreset) parts.push('<span style="color:var(--green);">☁ Hosted 8k</span>');
   if (meta.isCustom) parts.push('<span style="color:var(--accent);">🔧 Custom</span>');
   if (meta.vram) parts.push(`<span class="vram">VRAM: ${meta.vram.toFixed(0)} MB</span>`);
   if (meta.ctx) parts.push(`<span class="ctx">ctx: ${meta.ctx}</span>`);
@@ -1288,8 +1291,8 @@ function buildEngineOptions(runtime, initProgressCallback, modelId) {
   const base = runtime?.prebuiltAppConfig || {};
   const cfg = JSON.parse(JSON.stringify(base));
   const record = allModels.find(m => m.model_id === modelId);
-  const isCustom = Boolean(record?.is_custom);
-  const useCache = Boolean(useIndexedDBCacheCheckbox?.checked) && !isCustom && shouldPersistDownloads();
+  const isLocalCustom = Boolean(record?.is_custom) && !Boolean(record?.is_builtin_hosted_preset);
+  const useCache = Boolean(useIndexedDBCacheCheckbox?.checked) && !isLocalCustom && shouldPersistDownloads();
   // Inject all models (including custom) so WebLLM can route to them
   const modelList = allModels.length > 0 ? allModels : (base.model_list || []);
   cfg.model_list = dedupeModelRecords(modelList);
@@ -1298,7 +1301,7 @@ function buildEngineOptions(runtime, initProgressCallback, modelId) {
     initProgressCallback,
     appConfig: cfg,
     effectiveCacheMode: useCache ? 'IndexedDB' : 'network',
-    isCustomModel: isCustom,
+    isCustomModel: isLocalCustom,
   };
 }
 
@@ -2154,6 +2157,23 @@ function getHosted8kPresetConfig() {
 
 function isHosted8kPresetUsable(rec) {
   return Boolean(rec?.model && rec?.model_id && rec?.model_lib);
+}
+
+function getHosted8kPresetModelRecord() {
+  const rec = getHosted8kPresetConfig();
+  if (!isHosted8kPresetUsable(rec)) return null;
+  return {
+    model: rec.model,
+    model_id: rec.model_id,
+    model_lib: rec.model_lib,
+    overrides: {
+      context_window_size: Number(rec?.overrides?.context_window_size || 8192),
+      prefill_chunk_size: Number(rec?.overrides?.prefill_chunk_size || 1024),
+    },
+    vram_required_MB: Number(rec?.vram_required_MB || 2000),
+    is_custom: true,
+    is_builtin_hosted_preset: true,
+  };
 }
 
 async function verifyHosted8kPresetReachable(rec) {

@@ -738,6 +738,7 @@
       <details class="card quick-guide">
         <summary>Start Here: Device + Model Guidance</summary>
         <ul>
+          <li>The hosted <strong>Qwen2.5-1.5B ctx8192</strong> preset is included directly in the model dropdowns as a built-in option.</li>
           <li>Use <strong>Chrome/Edge</strong> for benchmark comparability; Safari is supported but slower in our published runs.</li>
           <li>Default stable choice: <strong>Qwen2.5-1.5B-Instruct (q4f16_1)</strong> for balanced quality/speed on laptops.</li>
           <li>Need faster decode and can spend more memory: test <strong>Qwen3-1.7B</strong>.</li>
@@ -801,8 +802,7 @@
             <input type="number" id="customVram" class="input-text" placeholder="1600" />
           </div>
         </div>
-        <div class="btn-row thirds" style="margin-top:10px;">
-          <button id="addBaseline8kPresetBtn" class="btn btn-green">⚡ Add Qwen2.5 8k Preset (Hosted)</button>
+        <div class="btn-row" style="margin-top:10px;">
           <button id="addCustomBtn" class="btn btn-primary">➕ Add to Registry</button>
           <button id="clearCustomBtn" class="btn btn-secondary">🗑 Clear Custom Models</button>
         </div>
