@@ -73,6 +73,7 @@ git push -u origin main
 
 Use:
 - `docs/LAUNCH_THREAD_COPY_v1.0.0.md`
+- `docs/LAUNCH_DAY_CHECKLIST_2026-03-30.md`
 
 Post channels (same day):
 - X thread

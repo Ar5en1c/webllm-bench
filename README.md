@@ -37,6 +37,7 @@ First-run onboarding:
 
 - Release notes: [docs/RELEASE_NOTES_v1.0.0.md](docs/RELEASE_NOTES_v1.0.0.md)
 - Launch thread copy: [docs/LAUNCH_THREAD_COPY_v1.0.0.md](docs/LAUNCH_THREAD_COPY_v1.0.0.md)
+- Launch day checklist: [docs/LAUNCH_DAY_CHECKLIST_2026-03-30.md](docs/LAUNCH_DAY_CHECKLIST_2026-03-30.md)
 - 8k validation protocol: [docs/VALIDATION_PROTOCOL_8K.md](docs/VALIDATION_PROTOCOL_8K.md)
 - Batch validation report: [reports/launch_8k_batch_validation_2026-03-28.md](reports/launch_8k_batch_validation_2026-03-28.md)
 - Device/model guide: [docs/DEVICE_MODEL_GUIDE_2026-03-30.md](docs/DEVICE_MODEL_GUIDE_2026-03-30.md)

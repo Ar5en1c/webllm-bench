@@ -2,6 +2,7 @@
 
 Date: 2026-03-30
 Source metrics: `reports/launch_8k_batch_validation_2026-03-28.md`
+Latest stress parity run: 2026-03-30 (1024/512/5)
 
 ## 1) GitHub Release
 
@@ -31,9 +32,17 @@ What ships:
   - Decode delta: -0.53% .. +1.58%
   - Latency delta: -1.33% .. +0.48%
 
+Latest long-output stress parity (1024/512/5):
+- 4k baseline: latency 32248 ms, throughput 15.85 tok/s, decode 17.21 tok/s, TTFT 2393 ms
+- 8k custom: latency 32873 ms, throughput 15.54 tok/s, decode 16.87 tok/s, TTFT 2408 ms
+- Delta (8k vs 4k): latency +1.94%, throughput -1.96%, decode -1.98%, TTFT +0.63%
+
 Functional context gate:
 - 8k build passes >4k retrieval prompt checks
 - 4k baseline overflows at 5813 prompt tokens (context window size 4096)
+
+Stability note:
+- In long-output stress mode, one exit(1) runtime event was observed and auto-recovered by unload/reload retry; run completed.
 
 Important limitation:
 - Browser WebGPU does not provide exact live GPU VRAM counters. VRAM numbers are model metadata/proxy signals.
@@ -48,6 +57,8 @@ Report:
 
 Hosted preset artifacts:
 - https://huggingface.co/Ar5en1c/Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192
+Live app:
+- https://ar5en1c.github.io/webllm-bench/bench.html
 ```
 
 ## 2) X Thread (Exact Copy)
@@ -70,7 +81,7 @@ New in this release: one-click hosted 8k preset in the UI.
 
 ### Post 2
 ```
-8k validation on fixed profile (1024 prompt / 128 output / 10 iterations), using 8 exported runs:
+8k validation on fixed profile (1024/128/10), using 8 exported runs:
 
 Median delta (8k custom vs 4k baseline):
 - Decode TPS: +0.11%
@@ -90,6 +101,18 @@ Interpretation: parity band, no material regression on this profile.
 
 ### Post 4
 ```
+Latest long-output stress parity (1024/512/5):
+- 4k throughput: 15.85 tok/s
+- 8k throughput: 15.54 tok/s
+- delta: -1.96%
+
+Other deltas:
+- latency: +1.94%
+- decode: -1.98%
+```
+
+### Post 5
+```
 Functional gate result:
 - ctx8192 build handles >4k retrieval prompts
 - ctx4096 baseline fails at 5813 prompt tokens with context overflow
@@ -97,7 +120,7 @@ Functional gate result:
 So this is not only a config change; it is validated long-context behavior.
 ```
 
-### Post 5
+### Post 6
 ```
 Limitation (explicit):
 Browser WebGPU does not expose exact live VRAM usage counters.
@@ -105,7 +128,7 @@ Browser WebGPU does not expose exact live VRAM usage counters.
 Published VRAM numbers are model metadata / proxy signals, not hardware telemetry.
 ```
 
-### Post 6
+### Post 7
 ```
 Everything is reproducible from repo artifacts:
 - benchmark JSON exports
@@ -116,6 +139,15 @@ Commands:
 npm run test
 npm run report:8k:batch
 npm run launch:draft
+```
+
+### Post 8
+```
+Links:
+- Live: https://ar5en1c.github.io/webllm-bench/bench.html
+- Repo: https://github.com/Ar5en1c/webllm-bench
+- 8k model: https://huggingface.co/Ar5en1c/Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192
+- 8k workflow package: https://github.com/Ar5en1c/qwen2.5-1.5b-ctx8192-mlc
 ```
 
 ## 3) LinkedIn Post (Exact Copy)
@@ -137,9 +169,22 @@ Range across runs:
 - Decode delta: -0.53% to +1.58%
 - Latency delta: -1.33% to +0.48%
 
+Latest long-output stress parity run (1024 prompt, 512 output, 5 iterations):
+- 4k baseline throughput: 15.85 tok/s
+- 8k custom throughput: 15.54 tok/s
+- Delta: -1.96%
+
+Other stress deltas:
+- Latency: +1.94%
+- Decode: -1.98%
+- TTFT: +0.63%
+
 Functional context check also passed:
 - ctx8192 build handled prompts beyond 4k context
 - ctx4096 baseline overflowed at 5813 prompt tokens
+
+Stress stability note:
+- One exit(1) runtime event occurred and was auto-recovered by unload/reload retry; run completed.
 
 One limitation to state clearly: browser WebGPU does not expose exact live VRAM counters, so VRAM values are metadata/proxy signals.
 
