@@ -16,8 +16,16 @@ const WEBLLM_URLS = [
   'https://esm.run/@mlc-ai/web-llm@0.2.82',
   'https://esm.run/@mlc-ai/web-llm@latest',
 ];
+const HOSTED_8K_PRESET_DEFAULT = Object.freeze({
+  model: 'https://huggingface.co/Ar5en1c/Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192',
+  model_id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192-Ar5en1c',
+  model_lib: 'https://huggingface.co/Ar5en1c/Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192/resolve/main/Qwen2.5-1.5B-Instruct-q4f16_1-ctx8192_cs1024-webgpu.wasm',
+  overrides: { context_window_size: 8192, prefill_chunk_size: 1024 },
+  vram_required_MB: 2000,
+});
 const DUP_SCOPE_THROW_NEEDLE = 'throw Error("Value attached to scope multiple times")';
-const DUP_SCOPE_THROW_REPLACEMENT = 'console.warn("WebLLM Bench shim: suppressed duplicate scope attach warning")';
+const DUP_SCOPE_THROW_REPLACEMENT =
+  'window.__webllm_bench_dup_scope_warned||(window.__webllm_bench_dup_scope_warned=true,window.__WEBLLM_BENCH_DEBUG_SHIMS&&console.warn("WebLLM Bench shim: suppressed duplicate scope attach warning"))';
 const SAMPLER_SNIPPET_NEEDLE =
   'const s=this.fargsortProbs(U),h=s.get(0),R=s.get(1),c=this.tvm.uniform([1],0,1,this.device),y=new Float32Array(1).fill(-1),L=Math.max(i,1e-5);this.sampleIndices.forEach((A=>{y[A]=L})),this.topPDevice.copyFrom(y);const J=this.tvm.detachFromCurrentScope(this.fsampleWithTopP(h,R,c,this.sampleIndicesDevice,this.topPDevice)),K=this.tvm.detachFromCurrentScope(this.tvm.empty([1],"int32",this.tvm.cpu()).copyFrom(J));';
 const SAMPLER_SNIPPET_REPLACEMENT =
@@ -57,6 +65,10 @@ const deviceInfoEl = $('deviceInfo');
 const logArea = $('logArea');
 const useIndexedDBCacheCheckbox = $('useIndexedDBCache');
 const forceFullLengthCheckbox = $('forceFullLength');
+const persistDownloadsCheckbox = $('persistDownloads');
+const clearSiteCacheBtn = $('clearSiteCacheBtn');
+const devicePresetSel = $('devicePreset');
+const applyPresetBtn = $('applyPresetBtn');
 const runtimeSourceEl = $('runtimeSource');
 const cacheModeEl = $('cacheMode');
 const modelRootEl = $('modelRoot');
@@ -194,6 +206,7 @@ const ANALYTICS_CONFIG = {
 };
 const ANALYTICS_SESSION_ID = `sess_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 const ANALYTICS_INSTALLATION_KEY = 'webllm_bench_installation_id';
+const PERSIST_DOWNLOADS_KEY = 'webllm_keep_downloads';
 
 /* ══════════════════════════════════════════════════════════════════════
    UTILITY
@@ -230,6 +243,17 @@ function buildGroundedChatPreamble(modelId) {
     'Do not claim to be Anthropic, OpenAI, or any provider that is not implied by the loaded model ID.',
     'If asked today\'s date, use the local date provided above.',
   ].join('\n');
+}
+
+function isSafariBrowser() {
+  const ua = navigator.userAgent || '';
+  return /Safari\//.test(ua) && !/Chrome\/|CriOS\/|Edg\/|OPR\/|Brave\//i.test(ua);
+}
+
+function isLikelyMobileDevice() {
+  const ua = navigator.userAgent || '';
+  const touchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || touchMac;
 }
 
 function detectLocalFactIntent(text) {
@@ -591,6 +615,10 @@ function log(msg) {
 }
 
 function showStatus(type, msg) {
+  if (!msg || !String(msg).trim()) {
+    clearStatus();
+    return;
+  }
   statusBanner.className = `status-banner ${type}`;
   statusBanner.classList.remove('hidden');
   statusBanner.textContent = msg;
@@ -610,7 +638,116 @@ function setElProgress(wrap, bar, text, pct, label) {
 function hideElProgress(wrap) { wrap.classList.remove('active'); }
 
 function getCacheLabel() {
+  if (!shouldPersistDownloads()) return 'network (ephemeral)';
   return useIndexedDBCacheCheckbox?.checked ? 'IndexedDB' : 'network';
+}
+
+function readPersistDownloadsPreference() {
+  try { return localStorage.getItem(PERSIST_DOWNLOADS_KEY) === '1'; } catch { return false; }
+}
+
+function writePersistDownloadsPreference(enabled) {
+  try { localStorage.setItem(PERSIST_DOWNLOADS_KEY, enabled ? '1' : '0'); } catch { /* noop */ }
+}
+
+function shouldPersistDownloads() {
+  if (persistDownloadsCheckbox) return Boolean(persistDownloadsCheckbox.checked);
+  return readPersistDownloadsPreference();
+}
+
+function shouldNoStoreModelFetch(url) {
+  const u = String(url || '');
+  if (!u) return false;
+  return /mlc-chat-config\.json|tokenizer\.json|tensor-cache\.json|params_shard_\d+\.bin|\.wasm(?:\?|$)|\/resolve\/main\//i.test(u);
+}
+
+function withNoStoreFetchArgs(argsLike) {
+  const args = Array.isArray(argsLike) ? [...argsLike] : [];
+  if (!args.length) return argsLike;
+  const input = args[0];
+  const init = args[1] || {};
+  if (input instanceof Request) {
+    args[0] = new Request(input, { ...init, cache: 'no-store' });
+    if (args.length === 1) args.push({});
+    args[1] = { ...init, cache: 'no-store' };
+    return args;
+  }
+  args[1] = { ...init, cache: 'no-store' };
+  return args;
+}
+
+function deleteIndexedDbDatabase(name) {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.deleteDatabase(name);
+      req.onsuccess = () => resolve({ ok: true, name });
+      req.onerror = () => resolve({ ok: false, name, reason: req.error?.message || 'delete error' });
+      req.onblocked = () => resolve({ ok: false, name, reason: 'blocked' });
+    } catch (err) {
+      resolve({ ok: false, name, reason: String(err?.message || err || 'delete throw') });
+    }
+  });
+}
+
+async function clearSiteModelCaches({ includeCustomModels = false, quiet = false } = {}) {
+  if (engine) {
+    try { await engine.unload(); } catch { /* noop */ }
+    engine = null;
+    activeModelId = null;
+  }
+
+  if (includeCustomModels) {
+    for (const m of customModels) {
+      if ((m?.is_ephemeral_local_lib || m?.is_ephemeral_local_files) && typeof m.model_lib === 'string' && m.model_lib.startsWith('blob:')) {
+        try { URL.revokeObjectURL(m.model_lib); } catch { /* noop */ }
+      }
+    }
+    localModelStores.clear();
+    customModels = [];
+    try { localStorage.removeItem('webllm_custom_models'); } catch { /* noop */ }
+  }
+
+  let dbDeleted = 0;
+  let dbFailed = 0;
+  let cacheDeleted = 0;
+  let cacheFailed = 0;
+
+  try {
+    if (indexedDB?.databases) {
+      const dbs = await indexedDB.databases();
+      const names = dbs.map((d) => d?.name).filter(Boolean);
+      for (const name of names) {
+        const res = await deleteIndexedDbDatabase(name);
+        if (res.ok) dbDeleted += 1; else dbFailed += 1;
+      }
+    }
+  } catch {
+    // Not supported in all browsers.
+  }
+
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      for (const key of keys) {
+        try {
+          const ok = await caches.delete(key);
+          if (ok) cacheDeleted += 1; else cacheFailed += 1;
+        } catch {
+          cacheFailed += 1;
+        }
+      }
+    }
+  } catch {
+    // noop
+  }
+
+  rebuildModelRegistry();
+  populateModelSelectors();
+
+  const summary = `Cleared model cache data: IndexedDB ${dbDeleted} deleted${dbFailed ? ` (${dbFailed} failed)` : ''}, CacheStorage ${cacheDeleted} deleted${cacheFailed ? ` (${cacheFailed} failed)` : ''}.`;
+  log(summary);
+  if (!quiet) showStatus('success', summary);
+  return { dbDeleted, dbFailed, cacheDeleted, cacheFailed };
 }
 
 function uniqUrls(urls) {
@@ -627,6 +764,99 @@ function dedupeModelRecords(records) {
     out.push(rec);
   }
   return out;
+}
+
+function modelExists(modelId) {
+  return Boolean(modelId && allModels.some((m) => m.model_id === modelId));
+}
+
+function pickModelId(preferredId, fallbackId) {
+  if (modelExists(preferredId)) return preferredId;
+  if (modelExists(fallbackId)) return fallbackId;
+  return allModels[0]?.model_id || '';
+}
+
+function selectModelAcrossUI(modelId) {
+  if (!modelId) return;
+  const selectIfPresent = (sel) => {
+    if (!sel) return;
+    if (Array.from(sel.options || []).some((opt) => opt.value === modelId)) {
+      sel.value = modelId;
+      sel.dispatchEvent(new Event('change'));
+    }
+  };
+  selectIfPresent(benchModelSelect);
+  selectIfPresent(chatModelSelect);
+  selectIfPresent(compareModelA);
+  if (compareSelect?.value === modelId) compareSelect.value = '';
+}
+
+function applyRuntimeGuidance() {
+  const notes = [];
+  if (isLikelyMobileDevice()) {
+    if (devicePresetSel) devicePresetSel.value = 'mobile';
+    applyBenchmarkPreset('mobile', { silent: true });
+    notes.push('Mobile WebGPU is experimental. Defaults were reduced for stability (smaller prompt/output windows).');
+  } else if (isSafariBrowser()) {
+    if (devicePresetSel) devicePresetSel.value = 'safari';
+    applyBenchmarkPreset('safari', { silent: true });
+    notes.push('Safari works, but our published runs show lower throughput/TTFT than Chrome-family. For benchmark parity, use Chrome/Edge.');
+  } else {
+    if (devicePresetSel) devicePresetSel.value = 'desktop';
+    applyBenchmarkPreset('desktop', { silent: true });
+  }
+  if (notes.length) showStatus('warning', notes.join(' '));
+}
+
+function applyBenchmarkPreset(preset, { silent = false } = {}) {
+  const p = String(preset || 'desktop');
+  if (p === 'desktop-real') {
+    if (promptTokensSel) promptTokensSel.value = '512';
+    if (maxTokensSel) maxTokensSel.value = '256';
+    if (iterationsSel) iterationsSel.value = '5';
+    if (compareMaxTokens) compareMaxTokens.value = '512';
+    if (chatMaxTokens) chatMaxTokens.value = '1024';
+    if (forceFullLengthCheckbox) forceFullLengthCheckbox.checked = false;
+    if (!silent) showStatus('success', 'Applied Desktop Real-World preset: 512/256/5 with natural-length outputs.');
+    return;
+  }
+  if (p === 'desktop-long') {
+    if (promptTokensSel) promptTokensSel.value = '512';
+    if (maxTokensSel) maxTokensSel.value = '1024';
+    if (iterationsSel) iterationsSel.value = '3';
+    if (compareMaxTokens) compareMaxTokens.value = '1024';
+    if (chatMaxTokens) chatMaxTokens.value = '2048';
+    if (forceFullLengthCheckbox) forceFullLengthCheckbox.checked = true;
+    if (!silent) showStatus('warning', 'Applied Desktop Long-Output preset: 512/1024/3 for decode stress testing.');
+    return;
+  }
+  if (p === 'mobile') {
+    if (promptTokensSel) promptTokensSel.value = '512';
+    if (maxTokensSel) maxTokensSel.value = '64';
+    if (iterationsSel) iterationsSel.value = '3';
+    if (compareMaxTokens) compareMaxTokens.value = '128';
+    if (chatMaxTokens) chatMaxTokens.value = '256';
+    if (forceFullLengthCheckbox) forceFullLengthCheckbox.checked = false;
+    if (!silent) showStatus('warning', 'Applied Mobile Experimental preset: 512/64/3 with conservative chat/compare defaults.');
+    return;
+  }
+  if (p === 'safari') {
+    if (promptTokensSel) promptTokensSel.value = '512';
+    if (maxTokensSel) maxTokensSel.value = '128';
+    if (iterationsSel) iterationsSel.value = '5';
+    if (compareMaxTokens) compareMaxTokens.value = '256';
+    if (chatMaxTokens) chatMaxTokens.value = '512';
+    if (forceFullLengthCheckbox) forceFullLengthCheckbox.checked = true;
+    if (!silent) showStatus('warning', 'Applied Safari Stable preset: 512/128/5 and force-full-length enabled for cleaner comparisons.');
+    return;
+  }
+  if (promptTokensSel) promptTokensSel.value = '1024';
+  if (maxTokensSel) maxTokensSel.value = '128';
+  if (iterationsSel) iterationsSel.value = '10';
+  if (compareMaxTokens) compareMaxTokens.value = '512';
+  if (chatMaxTokens) chatMaxTokens.value = '512';
+  if (forceFullLengthCheckbox) forceFullLengthCheckbox.checked = true;
+  if (!silent) showStatus('success', 'Applied Desktop Benchmark preset: 1024/128/10 with force-full-length enabled.');
 }
 
 function rebuildModelRegistry() {
@@ -800,12 +1030,16 @@ function installFetchTracer() {
   if (fetchTracerInstalled || typeof window.fetch !== 'function') return;
   const orig = window.fetch.bind(window);
   window.fetch = async (...a) => {
+    let args = a;
     let u = '';
     try { u = typeof a[0] === 'string' ? a[0] : a[0]?.url || ''; } catch { u = ''; }
     const localResp = await maybeServeLocalModelAsset(u);
     if (captureModelFetchUrls && u) observedModelFetchUrls.push(u);
     if (localResp) return localResp;
-    return orig(...a);
+    if (!shouldPersistDownloads() && shouldNoStoreModelFetch(u)) {
+      args = withNoStoreFetchArgs(a);
+    }
+    return orig(...args);
   };
   fetchTracerInstalled = true;
 }
@@ -878,6 +1112,11 @@ function populateModelSelectors() {
   if (allModels.length === 0) return;
 
   const currentFilter = globalFamilyFilter?.value || 'All';
+  const prevBench = benchModelSelect?.value || '';
+  const prevChat = chatModelSelect?.value || '';
+  const prevCmpA = compareModelA?.value || '';
+  const prevCmpB = compareModelB?.value || '';
+  const prevBenchCmp = compareSelect?.value || '';
 
   // Group by family
   const groups = {};
@@ -930,14 +1169,19 @@ function populateModelSelectors() {
 
   const defaultSmall = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC';
   const defaultLlama = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
+  const selectedBench = pickModelId(prevBench, defaultSmall);
+  const selectedChat = pickModelId(prevChat, defaultSmall);
+  const selectedCmpA = pickModelId(prevCmpA, defaultSmall);
+  const selectedCmpB = pickModelId(prevCmpB, defaultLlama);
+  const selectedBenchCmp = prevBenchCmp && modelExists(prevBenchCmp) ? prevBenchCmp : '';
 
-  benchModelSelect.innerHTML = makeOptions(defaultSmall);
-  chatModelSelect.innerHTML = makeOptions(defaultSmall);
-  compareModelA.innerHTML = makeOptions(defaultSmall);
-  compareModelB.innerHTML = makeOptions(defaultLlama);
+  benchModelSelect.innerHTML = makeOptions(selectedBench);
+  chatModelSelect.innerHTML = makeOptions(selectedChat);
+  compareModelA.innerHTML = makeOptions(selectedCmpA);
+  compareModelB.innerHTML = makeOptions(selectedCmpB);
 
   // Compare select in bench tab (add "none" option)
-  compareSelect.innerHTML = `<option value="">— none —</option>${makeOptions('')}`;
+  compareSelect.innerHTML = `<option value="" ${selectedBenchCmp ? '' : 'selected'}>— none —</option>${makeOptions(selectedBenchCmp)}`;
 
   // Model count badge
   const badge = $('modelCountBadge');
@@ -1045,7 +1289,7 @@ function buildEngineOptions(runtime, initProgressCallback, modelId) {
   const cfg = JSON.parse(JSON.stringify(base));
   const record = allModels.find(m => m.model_id === modelId);
   const isCustom = Boolean(record?.is_custom);
-  const useCache = Boolean(useIndexedDBCacheCheckbox?.checked) && !isCustom;
+  const useCache = Boolean(useIndexedDBCacheCheckbox?.checked) && !isCustom && shouldPersistDownloads();
   // Inject all models (including custom) so WebLLM can route to them
   const modelList = allModels.length > 0 ? allModels : (base.model_list || []);
   cfg.model_list = dedupeModelRecords(modelList);
@@ -1093,6 +1337,9 @@ async function loadModel(modelId, progressFn) {
     if (progressFn) progressFn(pct, report.text);
   };
   const opts = buildEngineOptions(runtime, initProgressCallback, modelId);
+  if (!shouldPersistDownloads()) {
+    log('ℹ Keep downloads is OFF: using ephemeral network mode (no persistent model cache).');
+  }
   if (opts.isCustomModel && useIndexedDBCacheCheckbox?.checked) {
     log('ℹ Custom model: forcing network mode (IndexedDB disabled) to avoid stale local artifact conflicts.');
   }
@@ -1140,7 +1387,7 @@ async function loadModel(modelId, progressFn) {
           continue;
         }
         if (msg.includes('Value attached to scope multiple times')) {
-          throw new Error('Model init failed (scope attach duplication). Use "Add Local 8k Preset" or clear Local Model Files and use URL mode.');
+          throw new Error('Model init failed (scope attach duplication). Use the hosted 8k preset or clear Local Model Files and use URL mode.');
         }
         if (msg.includes('fargsortProbs is not a function')) {
           throw new Error('Model init failed: runtime sampler functions missing. Hard refresh (Cmd+Shift+R) and retry; if it persists, switch runtime source by reloading once.');
@@ -1220,7 +1467,19 @@ async function runBenchmark(modelId, config, progressFn) {
   const runs = [];
   for (let i = 0; i < iterations; i++) {
     if (progressFn) progressFn(((i + 1) / iterations) * 100, `Run ${i + 1}/${iterations}…`);
-    const run = await runOne(promptTokens, maxTokens, forceIgnoreEos);
+    let run;
+    try {
+      run = await runOne(promptTokens, maxTokens, forceIgnoreEos);
+    } catch (err) {
+      const msg = String(err?.message || err || '');
+      const crashed = msg.includes('Program terminated with exit(1)') || msg.includes('exit(1)');
+      if (!crashed) throw err;
+      log(`  run ${i + 1}: runtime exited (exit(1)); reloading model and retrying once...`);
+      await loadModel(modelId, (pct, text) => {
+        if (progressFn) progressFn(((i + 1) / iterations) * 100, `${text} (retry run ${i + 1})`);
+      });
+      run = await runOne(promptTokens, maxTokens, forceIgnoreEos);
+    }
     runs.push(run);
     log(`  run ${i + 1}: ${run.totalMs.toFixed(0)}ms | ${run.outTokens} tok | ${run.tps.toFixed(1)} tok/s`);
   }
@@ -1877,40 +2136,75 @@ chatInput.addEventListener('keydown', e => {
 });
 
 // Custom Models Handlers
-function normalizeLocalRecordUrl(raw) {
+function getHosted8kPresetConfig() {
+  const override = window.WEBLLM_BENCH_PRESETS?.qwen25_15b_ctx8192_hf || {};
+  return {
+    ...HOSTED_8K_PRESET_DEFAULT,
+    ...override,
+    overrides: {
+      ...HOSTED_8K_PRESET_DEFAULT.overrides,
+      ...(override?.overrides || {}),
+    },
+  };
+}
+
+function isHosted8kPresetUsable(rec) {
+  return Boolean(rec?.model && rec?.model_id && rec?.model_lib);
+}
+
+async function verifyHosted8kPresetReachable(rec) {
+  const root = String(rec.model || '').replace(/\/+$/, '');
+  const cfgUrl = `${root}/resolve/main/mlc-chat-config.json`;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 7000);
   try {
-    const u = new URL(raw);
-    const isLoopback = u.hostname === '127.0.0.1' || u.hostname === 'localhost';
-    const isProjectPath = u.pathname.includes('/local-model-host/') || u.pathname.includes('/jobtracker-mlc-lab-worktree/');
-    if (isLoopback && isProjectPath) return `${window.location.origin}${u.pathname}${u.search || ''}`;
-    return raw;
-  } catch {
-    return raw;
+    const res = await fetch(cfgUrl, { cache: 'no-store', signal: ctl.signal });
+    if (!res.ok) throw new Error(`Cannot fetch preset config (${res.status}). Hosted repo may be private or missing: ${cfgUrl}`);
+    const json = await res.json();
+    const ctx = Number(json?.context_window_size || rec?.overrides?.context_window_size || 0);
+    if (ctx < 8192) throw new Error(`Preset config context_window_size=${ctx} (expected >=8192)`);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-async function readGeneratedLocalRecords() {
-  const res = await fetch('./extension-lab/model_records.local.generated.json', { cache: 'no-store' });
-  if (!res.ok) throw new Error(`Cannot read local records (${res.status})`);
-  return res.json();
+async function refreshHosted8kPresetAvailability() {
+  if (!addBaseline8kPresetBtn) return;
+  const rec = getHosted8kPresetConfig();
+  const usable = isHosted8kPresetUsable(rec);
+  addBaseline8kPresetBtn.classList.toggle('hidden', !usable);
+  addBaseline8kPresetBtn.title = usable
+    ? 'One-click preset for hosted Qwen2.5-1.5B ctx8192 artifacts.'
+    : 'Unavailable: hosted 8k preset is not configured.';
 }
 
 async function handleAddBaseline8kPreset() {
   try {
-    const data = await readGeneratedLocalRecords();
-    const rec = data?.baseline8k;
-    if (!rec?.model || !rec?.model_id || !rec?.model_lib) throw new Error('baseline8k record missing required fields');
+    const rec = getHosted8kPresetConfig();
+    if (!isHosted8kPresetUsable(rec)) throw new Error('Hosted 8k preset is not configured');
+    await verifyHosted8kPresetReachable(rec);
+
+    if (modelExists(rec.model_id)) {
+      selectModelAcrossUI(rec.model_id);
+      customModelWarn.style.color = 'var(--green)';
+      customModelWarn.textContent = `Preset already exists. Selected ${rec.model_id}.`;
+      showStatus('success', 'Hosted Qwen2.5 8k preset already in registry and selected.');
+      return;
+    }
 
     clearLocalModelFilesSelection();
     clearLocalWasmSelection();
 
-    customModelUrl.value = normalizeLocalRecordUrl(rec.model);
-    customLibUrl.value = normalizeLocalRecordUrl(rec.model_lib);
+    customModelUrl.value = rec.model;
+    customLibUrl.value = rec.model_lib;
     customModelId.value = rec.model_id;
     customContext.value = String(rec?.overrides?.context_window_size || 8192);
     customVram.value = String(rec?.vram_required_MB || 2000);
 
     handleAddCustomModel();
+    if (!customModelWarn.textContent || customModelWarn.style.color === 'var(--green)') {
+      showStatus('success', 'Hosted Qwen2.5 8k preset added to registry.');
+    }
   } catch (err) {
     customModelWarn.style.color = 'var(--yellow)';
     customModelWarn.textContent = `Preset load failed: ${err.message}`;
@@ -2026,6 +2320,7 @@ function handleAddCustomModel() {
   customModelUrl.value = ''; customLibUrl.value = ''; customModelId.value = ''; customContext.value = ''; customVram.value = '';
   clearLocalModelFilesSelection();
   clearLocalWasmSelection();
+  selectModelAcrossUI(mid);
 }
 
 function handleClearCustomModels() {
@@ -2046,6 +2341,37 @@ function handleClearCustomModels() {
   customModelWarn.textContent = 'Custom models cleared.';
 }
 
+async function handleClearSiteCaches() {
+  const ok = confirm('Clear model cache data for this site (IndexedDB + CacheStorage)? This will unload models and may require re-download.');
+  if (!ok) return;
+  runBtn.disabled = true;
+  compareRunBtn.disabled = true;
+  chatLoadBtn.disabled = true;
+  sweepBtn.disabled = true;
+  try {
+    await clearSiteModelCaches({ includeCustomModels: true, quiet: false });
+    customModelWarn.style.color = 'var(--text-muted)';
+    customModelWarn.textContent = 'Site cache cleared. Re-add any custom models you want to use.';
+  } finally {
+    runBtn.disabled = false;
+    compareRunBtn.disabled = false;
+    chatLoadBtn.disabled = false;
+    sweepBtn.disabled = false;
+  }
+}
+
+async function handlePersistDownloadsToggle() {
+  const keep = Boolean(persistDownloadsCheckbox?.checked);
+  writePersistDownloadsPreference(keep);
+  if (keep) {
+    showStatus('success', 'Keep downloads enabled. Model data can persist across refresh.');
+    return;
+  }
+  showStatus('warning', 'Keep downloads disabled. Cached model data will be cleared on refresh.');
+  const clearNow = confirm('Keep downloads is OFF. Clear existing cached model data now?');
+  if (clearNow) await clearSiteModelCaches({ includeCustomModels: true, quiet: false });
+}
+
 // Events
 runBtn.addEventListener('click', handleRun);
 exportBtn.addEventListener('click', handleExport);
@@ -2059,6 +2385,9 @@ importBtn.addEventListener('click', handleImportToggle);
 importConfirmBtn.addEventListener('click', handleImportConfirm);
 exportSweepBtn.addEventListener('click', handleExportSweep);
 if (globalFamilyFilter) globalFamilyFilter.addEventListener('change', populateModelSelectors);
+if (applyPresetBtn) applyPresetBtn.addEventListener('click', () => applyBenchmarkPreset(devicePresetSel?.value || 'desktop'));
+if (clearSiteCacheBtn) clearSiteCacheBtn.addEventListener('click', handleClearSiteCaches);
+if (persistDownloadsCheckbox) persistDownloadsCheckbox.addEventListener('change', handlePersistDownloadsToggle);
 
 // Custom Models
 if (addBaseline8kPresetBtn) addBaseline8kPresetBtn.addEventListener('click', handleAddBaseline8kPreset);
@@ -2073,12 +2402,20 @@ async function init() {
   setupLocalModelFilesDropzone();
   setupLocalWasmDropzone();
   startAnalytics();
+  if (persistDownloadsCheckbox) persistDownloadsCheckbox.checked = readPersistDownloadsPreference();
+  if (!shouldPersistDownloads()) {
+    await clearSiteModelCaches({ includeCustomModels: true, quiet: true });
+    log('Startup policy: keep-downloads is OFF, so persisted model data was cleared for this refresh.');
+  }
+  await refreshHosted8kPresetAvailability();
+  clearStatus();
   if (!navigator.gpu) {
     showStatus('error', 'WebGPU not available. Use Chrome 113+ or Edge 113+.');
     runBtn.disabled = true; sweepBtn.disabled = true; chatLoadBtn.disabled = true; compareRunBtn.disabled = true;
     return;
   }
   await getDeviceInfo();
+  applyRuntimeGuidance();
   loadSavedBaselines();
 
   // Pre-load WebLLM in background to populate model list

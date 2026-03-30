@@ -1,6 +1,6 @@
 # Launch Copy v1.0.0 (Claim-Safe)
 
-Date: 2026-03-28
+Date: 2026-03-30
 Source metrics: `reports/launch_8k_batch_validation_2026-03-28.md`
 
 ## 1) GitHub Release
@@ -15,6 +15,7 @@ WebLLM Bench v1.0.0 is now public.
 What ships:
 - Browser-native local LLM toolkit: benchmark, chat, side-by-side compare, best-model sweep, baseline import/export
 - Custom model registry support for MLC/WebLLM artifacts
+- One-click hosted preset for Qwen2.5-1.5B ctx8192
 - Reproducible 8k context validation workflow for Qwen2.5-1.5B
 
 8k validation summary (measured):
@@ -44,6 +45,9 @@ Reproduce:
 
 Report:
 - reports/launch_8k_batch_validation_2026-03-28.md
+
+Hosted preset artifacts:
+- https://huggingface.co/Ar5en1c/Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192
 ```
 
 ## 2) X Thread (Exact Copy)
@@ -60,6 +64,8 @@ A browser-native local LLM toolkit for:
 - baseline import/export
 
 Plus a reproducible ctx8192 validation workflow for Qwen2.5-1.5B.
+
+New in this release: one-click hosted 8k preset in the UI.
 ```
 
 ### Post 2
@@ -118,6 +124,8 @@ npm run launch:draft
 We are open-sourcing WebLLM Bench v1.0.0.
 
 This release includes a browser-native local LLM toolkit (benchmark, chat, side-by-side compare, best-model sweep, and baseline import/export) and a reproducible ctx8192 validation workflow for Qwen2.5-1.5B.
+
+Users can add the hosted 8k build in one click via the app preset button.
 
 Measured 8k result on a fixed benchmark profile (1024 prompt tokens, 128 output tokens, 10 iterations), aggregated across 8 exported runs:
 - Decode TPS delta (8k vs 4k): +0.11%

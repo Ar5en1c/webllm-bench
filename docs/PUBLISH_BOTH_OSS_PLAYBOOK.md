@@ -36,6 +36,12 @@ Shortcut (recommended): once both empty GitHub repos exist, run:
 ./scripts/publish_two_repos_after_create.sh
 ```
 
+If remote `main` already has unrelated history and you intentionally want to overwrite it:
+
+```bash
+ALLOW_FORCE_PUSH=1 ./scripts/publish_two_repos_after_create.sh
+```
+
 ## C. Publish repo 1: webllm-bench
 
 ```bash
@@ -80,6 +86,13 @@ Post channels (same day):
 - Once enabled, header badges show:
   - Users (24h)
   - Runs (24h)
+
+## H. First-user onboarding assets
+
+Keep these visible in README and docs:
+- `docs/START_HERE.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/DEVICE_MODEL_GUIDE_2026-03-30.md`
 
 ## G. Week-1 growth loop
 

@@ -57,6 +57,7 @@ function buildReleaseNotes(version, reportRel, d) {
   - Best-model sweep
   - Community baseline import/export
 - Custom model support for MLC/WebLLM artifacts
+- One-click hosted preset for Qwen2.5-1.5B ctx8192
 - Reproducible 8k context validation protocol and report generators
 
 ## 8k validation result (Qwen2.5-1.5B, measured)
@@ -108,6 +109,10 @@ Per-export report:
 npm run report:8k:validation -- --in /absolute/path/to/webllm-bench-<timestamp>.json
 \`\`\`
 
+Hosted preset artifacts:
+- \`https://huggingface.co/Ar5en1c/Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192\`
+- \`https://huggingface.co/Ar5en1c/Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192/resolve/main/Qwen2.5-1.5B-Instruct-q4f16_1-ctx8192_cs1024-webgpu.wasm\`
+
 ## Notes
 
 - Excluded from 8k-vs-4k aggregate:
@@ -133,6 +138,7 @@ WebLLM Bench ${version} is now public.
 What ships:
 - Browser-native local LLM toolkit: benchmark, chat, side-by-side compare, best-model sweep, baseline import/export
 - Custom model registry support for MLC/WebLLM artifacts
+- One-click hosted preset for Qwen2.5-1.5B ctx8192
 - Reproducible 8k context validation workflow for Qwen2.5-1.5B
 
 8k validation summary (measured):
@@ -162,6 +168,9 @@ Reproduce:
 
 Report:
 - ${reportRel}
+
+Hosted preset artifacts:
+- https://huggingface.co/Ar5en1c/Qwen2.5-1.5B-Instruct-q4f16_1-MLC-ctx8192
 \`\`\`
 
 ## 2) X Thread (Exact Copy)
@@ -178,6 +187,8 @@ A browser-native local LLM toolkit for:
 - baseline import/export
 
 Plus a reproducible ctx8192 validation workflow for Qwen2.5-1.5B.
+
+New in this release: one-click hosted 8k preset in the UI.
 \`\`\`
 
 ### Post 2
@@ -236,6 +247,8 @@ npm run launch:draft
 We are open-sourcing WebLLM Bench ${version}.
 
 This release includes a browser-native local LLM toolkit (benchmark, chat, side-by-side compare, best-model sweep, and baseline import/export) and a reproducible ctx8192 validation workflow for Qwen2.5-1.5B.
+
+Users can add the hosted 8k build in one click via the app preset button.
 
 Measured 8k result on a fixed benchmark profile (1024 prompt tokens, 128 output tokens, 10 iterations), aggregated across ${d.includedRuns} exported runs:
 - Decode TPS delta (8k vs 4k): ${d.decodeMedian}

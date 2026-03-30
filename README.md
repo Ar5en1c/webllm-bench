@@ -1,6 +1,10 @@
 # WebLLM Bench
 Browser-native local LLM toolkit for WebLLM/MLC models.
 
+Maintainer:
+- Kuldeep Singh ([Ar5en1c](https://github.com/Ar5en1c))
+- Built alongside [YouxAI](https://youxai.app)
+
 ## Live Demo (GitHub Pages)
 
 After enabling Pages in repository settings:
@@ -14,6 +18,11 @@ python3 -m http.server 8765
 # open http://localhost:8765/bench.html
 ```
 
+First-run onboarding:
+- [docs/START_HERE.md](docs/START_HERE.md)
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+- [docs/HUGGINGFACE_ONE_CLICK_8K.md](docs/HUGGINGFACE_ONE_CLICK_8K.md)
+
 ## Core Features
 
 - Benchmark (single + A/B compare)
@@ -22,6 +31,7 @@ python3 -m http.server 8765
 - Best-model sweep
 - Community baseline import/export
 - Custom model support (URL or local files)
+- One-click hosted 8k preset for Qwen2.5-1.5B
 
 ## Launch Artifacts
 
@@ -29,6 +39,8 @@ python3 -m http.server 8765
 - Launch thread copy: [docs/LAUNCH_THREAD_COPY_v1.0.0.md](docs/LAUNCH_THREAD_COPY_v1.0.0.md)
 - 8k validation protocol: [docs/VALIDATION_PROTOCOL_8K.md](docs/VALIDATION_PROTOCOL_8K.md)
 - Batch validation report: [reports/launch_8k_batch_validation_2026-03-28.md](reports/launch_8k_batch_validation_2026-03-28.md)
+- Device/model guide: [docs/DEVICE_MODEL_GUIDE_2026-03-30.md](docs/DEVICE_MODEL_GUIDE_2026-03-30.md)
+- Pre-launch audit: [docs/PRELAUNCH_AUDIT_2026-03-30.md](docs/PRELAUNCH_AUDIT_2026-03-30.md)
 
 ## Repro
 

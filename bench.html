@@ -70,10 +70,36 @@
       }
       .header p {
         max-width: 620px;
-        margin: 0 auto;
+        margin: 0 auto 4px;
         color: var(--ink-2);
         font-size: 14px;
         letter-spacing: -0.01em;
+      }
+      .header .header-meta {
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .header .header-meta a {
+        color: #1b4e9b;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .header .header-meta a:hover {
+        text-decoration: underline;
+      }
+      .site-footer {
+        margin: 16px 0 6px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .site-footer a {
+        color: #1b4e9b;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .site-footer a:hover {
+        text-decoration: underline;
       }
       .badge-row {
         display: flex;
@@ -657,6 +683,24 @@
 
       .hidden { display: none !important; }
       .model-count { color: #12488f; }
+      .quick-guide {
+        margin-bottom: 12px;
+        background: linear-gradient(160deg, #ffffff, #fbf6ef);
+      }
+      .quick-guide summary {
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        color: #1f3453;
+      }
+      .quick-guide ul {
+        margin-top: 9px;
+        margin-left: 18px;
+        font-size: 12px;
+        color: var(--ink-2);
+        line-height: 1.55;
+      }
+      .quick-guide li + li { margin-top: 4px; }
 
       @media (max-width: 960px) {
         .container { padding-left: 16px; padding-right: 16px; }
@@ -674,6 +718,11 @@
     <div class="container">
       <div class="header">
         <h1>WebLLM Bench</h1>
+        <p>Test, chat, and compare local browser LLMs on your hardware.</p>
+        <div class="header-meta">
+          <a href="https://github.com/Ar5en1c/webllm-bench" target="_blank" rel="noopener">GitHub</a> ·
+          <a href="./docs/DEVICE_MODEL_GUIDE_2026-03-30.md" target="_blank" rel="noopener">Device/Model Guide</a>
+        </div>
         <div class="badge-row">
           <span class="badge"><span class="dot green"></span>WebGPU</span>
           <span class="badge"><span class="dot blue"></span>Local Inference</span>
@@ -686,6 +735,16 @@
       </div>
 
       <div id="statusBanner" class="status-banner hidden"></div>
+      <details class="card quick-guide">
+        <summary>Start Here: Device + Model Guidance</summary>
+        <ul>
+          <li>Use <strong>Chrome/Edge</strong> for benchmark comparability; Safari is supported but slower in our published runs.</li>
+          <li>Default stable choice: <strong>Qwen2.5-1.5B-Instruct (q4f16_1)</strong> for balanced quality/speed on laptops.</li>
+          <li>Need faster decode and can spend more memory: test <strong>Qwen3-1.7B</strong>.</li>
+          <li>For prompts beyond 4k context, use the custom <strong>ctx8192</strong> build and follow the 8k validation protocol.</li>
+          <li>Mobile is experimental: start with prompt ≤512 and max output ≤128.</li>
+        </ul>
+      </details>
       <!-- Custom Model Panel -->
       <details id="customModelPanel" class="card" style="margin-bottom: 12px;">
         <summary style="cursor: pointer; font-weight: 600; color: var(--accent);">
@@ -743,7 +802,7 @@
           </div>
         </div>
         <div class="btn-row thirds" style="margin-top:10px;">
-          <button id="addBaseline8kPresetBtn" class="btn btn-green">⚡ Add Local 8k Preset</button>
+          <button id="addBaseline8kPresetBtn" class="btn btn-green">⚡ Add Qwen2.5 8k Preset (Hosted)</button>
           <button id="addCustomBtn" class="btn btn-primary">➕ Add to Registry</button>
           <button id="clearCustomBtn" class="btn btn-secondary">🗑 Clear Custom Models</button>
         </div>
@@ -772,11 +831,25 @@
           </div>
           <div class="form-grid">
             <div><label for="promptTokens">Prompt Tokens</label><select id="promptTokens"><option value="512">512</option><option value="1024" selected>1024</option><option value="2048">2048</option><option value="4096">4096</option></select></div>
-            <div><label for="maxTokens">Max Output Tokens</label><select id="maxTokens"><option value="32">32</option><option value="64" selected>64</option><option value="128">128</option><option value="256">256</option><option value="512">512</option><option value="1024">1024</option><option value="2048">2048</option></select></div>
-            <div><label for="iterations">Iterations</label><select id="iterations"><option value="1">1 (quick)</option><option value="3" selected>3</option><option value="5">5</option><option value="10">10 (accurate)</option></select></div>
+            <div><label for="maxTokens">Max Output Tokens</label><select id="maxTokens"><option value="32">32</option><option value="64">64</option><option value="128" selected>128</option><option value="256">256</option><option value="512">512</option><option value="1024">1024</option><option value="2048">2048</option></select></div>
+            <div><label for="iterations">Iterations</label><select id="iterations"><option value="1">1 (quick)</option><option value="3">3</option><option value="5">5</option><option value="10" selected>10 (accurate)</option></select></div>
             <div><label for="compareModel">Compare With</label><select id="compareModel"><option value="">— none —</option></select></div>
             <div class="checkbox-wrap"><input type="checkbox" id="useIndexedDBCache" checked /><span>IndexedDB cache</span></div>
-            <div class="checkbox-wrap"><input type="checkbox" id="forceFullLength" /><span>Force full max tokens</span></div>
+            <div class="checkbox-wrap"><input type="checkbox" id="forceFullLength" checked /><span>Force full max tokens</span></div>
+            <div class="checkbox-wrap"><input type="checkbox" id="persistDownloads" /><span>Keep downloads across refresh</span></div>
+            <div><button id="clearSiteCacheBtn" class="btn btn-secondary" type="button" style="width:auto; padding:5px 10px; font-size:11px;" title="Clear browser caches and IndexedDB for this site.">🧹 Clear Site Caches</button></div>
+          </div>
+          <div class="chat-controls" style="margin-top: 6px;">
+            <label>Preset</label>
+            <select id="devicePreset">
+              <option value="desktop" selected>Desktop Benchmark (Recommended)</option>
+              <option value="desktop-real">Desktop Real-World Chat</option>
+              <option value="desktop-long">Desktop Long-Output Stress</option>
+              <option value="safari">Safari Stable</option>
+              <option value="mobile">Mobile Experimental</option>
+            </select>
+            <button id="applyPresetBtn" class="btn btn-secondary" style="width:auto; padding:6px 10px; font-size:11px;">Apply Preset</button>
+            <span style="font-size:11px; color:var(--ink-3);">Sets benchmark/chat defaults for reliable runs.</span>
           </div>
           <div class="btn-row"><button id="runBtn" class="btn btn-primary">▶ Run Benchmark</button><button id="exportBtn" class="btn btn-secondary" disabled>⬇ Export JSON</button></div>
           <div id="progressWrap" class="progress-wrap"><div class="progress-bar-bg"><div id="progressBar" class="progress-bar"></div></div><div id="progressText" class="progress-text">Initializing…</div></div>
@@ -914,6 +987,10 @@
       <div class="card">
         <div class="card-title">Log</div>
         <div id="logArea" class="log-area">WebLLM Bench v2.0 ready.\n</div>
+      </div>
+      <div class="site-footer">
+        Built by <a href="https://www.linkedin.com/in/kuldeep-5ingh/" target="_blank" rel="noopener">Kuldeep Singh</a> ·
+        <a href="https://youxai.app" target="_blank" rel="noopener">YouxAI</a>
       </div>
     </div>
 
